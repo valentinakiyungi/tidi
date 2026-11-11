@@ -16,19 +16,24 @@ def who(sender):
     return name or addr or sender
 
 
-def process_new(service, state, lookback_hours=24, max_emails=50):
+def process_new(service, state, lookback_hours=24, max_emails=50, log=print):
     """Sort, label, archive and draft for emails Tidi hasn't seen yet.
 
-    Returns a list of rows (one per newly handled email).
+    Returns (rows, found): rows for newly handled emails, and how many unread
+    emails Gmail returned in total. Raises brain.AIError if the AI fails;
+    those emails are then retried at the next check.
     """
     emails = gm.fetch_recent(service, lookback_hours, max_emails)
     processed = state.setdefault("processed", {})
     new = [e for e in emails if e["id"] not in processed]
+    log(f"Gmail: {len(emails)} unread email(s) in the last {lookback_hours}h, {len(new)} new to Tidi")
     if not new:
-        return []
+        return [], len(emails)
 
     decisions = brain.triage(new)
-    log = state.setdefault("log", [])
+    log(f"AI sorted {len(decisions)} of {len(new)} email(s)")
+
+    history = state.setdefault("log", [])
     queue = state.setdefault("unsub_queue", [])
     asked = state.setdefault("asked_senders", [])
     rows = []
@@ -46,7 +51,7 @@ def process_new(service, state, lookback_hours=24, max_emails=50):
 
         row = {"id": e["id"], "from": e["from"], "subject": e["subject"], "category": cat,
                "summary": d.get("summary", ""), "drafted": drafted}
-        log.append(row)
+        history.append(row)
         rows.append(row)
 
         if (d.get("suggest_unsubscribe") and e["list_unsubscribe"]
@@ -58,7 +63,7 @@ def process_new(service, state, lookback_hours=24, max_emails=50):
     # Forget emails older than two weeks so state.json stays small.
     cutoff = time.time() - 14 * 86400
     state["processed"] = {k: v for k, v in processed.items() if v > cutoff}
-    return rows
+    return rows, len(emails)
 
 
 def alert_text(rows):
@@ -70,8 +75,29 @@ def alert_text(rows):
     for r in urgent:
         tag = "↩️ reply drafted" if r["drafted"] else ("⚠️" if r["category"] == "important" else "↩️")
         lines.append(f"• {who(r['from'])}: {r['summary'] or r['subject']}  {tag}")
-    head = f"{len(urgent)} new email{'s' if len(urgent) > 1 else ''} need{'' if len(urgent) > 1 else 's'} you:"
+    n = len(urgent)
+    head = f"{n} new email{'s' if n > 1 else ''} need{'' if n > 1 else 's'} you:"
     return head + "\n" + "\n".join(lines)
+
+
+def summary_text(rows, found):
+    """One-line report of a check, used for manual checks and the first check after start."""
+    if not rows:
+        if found:
+            return f"All {found} unread email(s) were already sorted. Nothing new ✨"
+        return "No unread email in your inbox from the last day. Nothing to do ✨"
+    counts = {}
+    for r in rows:
+        counts[r["category"]] = counts.get(r["category"], 0) + 1
+    parts = ", ".join(f"{n} {LABELS[c].lower()}" for c, n in counts.items())
+    archived = sum(n for c, n in counts.items() if c in ARCHIVE)
+    drafts = sum(1 for r in rows if r["drafted"])
+    text = f"Sorted {len(rows)} email(s): {parts}."
+    if archived:
+        text += f"\n🧹 {archived} bulk email(s) moved out of your inbox (see the Tidi labels)."
+    if drafts:
+        text += f"\n✍️ {drafts} reply draft(s) waiting in Gmail Drafts."
+    return text
 
 
 def brief_text(state):

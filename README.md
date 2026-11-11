@@ -30,7 +30,8 @@ Pick one with `NOTIFY_VIA` in `.env`:
 
 | File | What it is |
 |---|---|
-| `tidi.py` | The main program and schedule. **Run this.** |
+| `run.sh` | Starts Tidi and keeps the Mac awake. **Run this.** |
+| `tidi.py` | The main program, schedule and self-test. |
 | `core.py` | What Tidi does with your mail: sorting, labels, drafts, alert text, brief. |
 | `notify.py` | Sending alerts and receiving your taps (ntfy or Telegram). |
 | `gmail_client.py` | Reads, labels, archives, drafts and unsubscribes in Gmail. |
@@ -86,7 +87,8 @@ To send a command, open the topic `<your topic>-replies` in the app (subscribe t
 
 ### 5. Run it
 ```bash
-python tidi.py
+bash run.sh --test    # check everything first
+bash run.sh           # start Tidi
 ```
 The first time, a browser window opens asking you to allow Gmail access. Approve it; this creates `token.json`. Tidi does its first check right away.
 
@@ -95,8 +97,26 @@ The first time, a browser window opens asking you to allow Gmail access. Approve
 - `BRIEF_TIME=07:30` and `TIMEZONE=...`: when the brief arrives.
 - `MAX_UNSUB_QUESTIONS=5`: how many "Unsubscribe?" questions per morning.
 
+## Self-test
+```bash
+bash run.sh --test
+```
+This checks your settings, the AI connection, Gmail access and phone alerts, and shows ✅ or ❌ with what to fix. It never changes your email.
+
+## Troubleshooting
+| You see | What to do |
+|---|---|
+| "the AI key was rejected (401)" | Create a new key at https://aistudio.google.com/apikey and paste it into `AI_API_KEY`. If new Gemini keys keep failing, switch to Groq: `AI_PROVIDER=groq` with a key from https://console.groq.com/keys. |
+| "model … wasn't found" | Set `AI_MODEL` to a current model name from the provider's website. |
+| "free AI limit was reached" | Wait, or lower `BATCH_SIZE` / `MAX_EMAILS`. |
+| "Google sign-in expired" | `rm token.json`, then start Tidi again and sign in. |
+| No alerts at all | Run the self-test. Tidi only sorts **unread** email; if everything is already read, there's nothing to do. |
+
+Everything Tidi does is also written to `tidi.log` in the folder.
+
 ## Keeping it running
-Tidi only works while `python tidi.py` is running. If that computer is off, you get nothing. Options:
+Tidi only works while it's running. If you close the terminal, or the Mac sleeps or shuts down, it stops.
+- **On your Mac:** start it with `bash run.sh`. This keeps the Mac awake while Tidi runs, as long as it stays plugged in with the lid open.
 - Leave it running on a computer that stays on.
 - Run it on a cheap cloud server (a $5/month VPS, Railway, Render, Fly.io). Copy the folder, **including `token.json` and `state.json`**, and start it with `nohup python tidi.py &` or a systemd service.
 

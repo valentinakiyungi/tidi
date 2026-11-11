@@ -20,6 +20,10 @@ LABEL_PREFIX = "Tidi"
 
 
 def get_service():
+    if not os.path.exists("credentials.json") and not os.path.exists("token.json"):
+        raise FileNotFoundError(
+            "credentials.json is missing. Download it from Google Cloud (Clients → Desktop app) "
+            "and put it in the tidi folder.")
     creds = None
     if os.path.exists("token.json"):
         creds = Credentials.from_authorized_user_file("token.json", SCOPES)
@@ -63,11 +67,21 @@ def _body_text(payload, limit=3000):
     return re.sub(r"\s+", " ", text).strip()[:limit]
 
 
+def _query(hours):
+    days = max(1, round(hours / 24))
+    return f"in:inbox is:unread newer_than:{days}d"
+
+
+def count_unread(service, hours=24):
+    """Quick count used by the self-test (up to 100)."""
+    resp = service.users().messages().list(userId="me", q=_query(hours), maxResults=100).execute()
+    return len(resp.get("messages", []))
+
+
 def fetch_recent(service, hours=24, max_results=50):
     """Return unread inbox emails from the last `hours` hours."""
-    days = max(1, round(hours / 24))
-    query = f"in:inbox is:unread newer_than:{days}d"
-    resp = service.users().messages().list(userId="me", q=query, maxResults=max_results).execute()
+    resp = service.users().messages().list(userId="me", q=_query(hours),
+                                           maxResults=max_results).execute()
     emails = []
     for ref in resp.get("messages", []):
         msg = service.users().messages().get(userId="me", id=ref["id"], format="full").execute()
