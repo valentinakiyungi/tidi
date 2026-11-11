@@ -2,6 +2,16 @@
 
 **Tidi** (from "tidy") is a small personal agent, in the spirit of Meta's Muse, that keeps your Gmail tidy and alerts your phone. It runs on free AI models.
 
+<p align="center">
+  <img src="docs/tidi-running.png" alt="iPhone notification from Tidi: Tidi is running. Checking every 3 hours, brief at 07:30. Doing a first check now..." width="520">
+  <br><em>Tidi running and reporting to an iPhone through the ntfy app</em>
+</p>
+
+<p align="center">
+  <img src="docs/morning-brief.png" alt="iPhone notification from Tidi: Your morning brief. Good morning Valentina. Here are your email counts: 3 important, 0 needs reply, and 14 notifications." width="520">
+  <br><em>The morning brief: a quick count of what came in overnight</em>
+</p>
+
 ## What it does
 
 **Every 3 hours** (you can change this)
