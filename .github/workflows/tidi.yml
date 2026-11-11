@@ -43,7 +43,7 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: state.json
-          key: tidi-state-${{ github.run_id }}
+          key: tidi-state-${{ github.run_id }}-${{ github.run_attempt }}-${{ github.run_attempt }}
           restore-keys: tidi-state-
 
       - name: Write private files from secrets
@@ -73,7 +73,7 @@ jobs:
         uses: actions/cache/save@v4
         with:
           path: state.json
-          key: tidi-state-${{ github.run_id }}
+          key: tidi-state-${{ github.run_id }}-${{ github.run_attempt }}-${{ github.run_attempt }}
 
       - name: Remove private files
         if: always()

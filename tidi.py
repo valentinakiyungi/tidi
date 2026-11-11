@@ -299,8 +299,8 @@ def run_once():
     otherwise check for new email."""
     global notifier
     _lock = single_instance()  # noqa: F841
-    notifier = make_notifier()
     try:
+        notifier = make_notifier()
         for action, arg, reply in notifier.poll():
             if action not in ("brief", "check"):  # those happen below anyway
                 handle(action, arg, reply)
@@ -310,10 +310,17 @@ def run_once():
         else:
             do_check(report="--report" in sys.argv)
     except Exception as exc:
+        import traceback
         text = explain(exc)
         log.error(text)
+        traceback.print_exc()
+        if os.getenv("CI"):
+            # Shows the reason on the GitHub run's summary page, under Annotations.
+            detail = f"{type(exc).__name__}: {str(exc)[:300]}"
+            print(f"::error title=Tidi::{text}  [{detail}]".replace("\n", " "))
         try:
-            notifier.send(text, title="⚠️ Tidi needs attention", urgent=True)
+            if notifier:
+                notifier.send(text, title="⚠️ Tidi needs attention", urgent=True)
         except Exception:
             pass
         store.save(state)
