@@ -90,6 +90,9 @@ class Ntfy:
         self.reply_topic = topic + "-replies"
         self.state = state
         self.headers = {"Authorization": f"Bearer {token}"} if token else {}
+        if self.state.get("ntfy_since_topic") != topic:  # new topic: start listening from now
+            self.state["ntfy_since"] = str(int(time.time()))
+            self.state["ntfy_since_topic"] = topic
         self.state.setdefault("ntfy_since", str(int(time.time())))
 
     ready = True

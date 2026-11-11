@@ -136,13 +136,15 @@ The workflow in `.github/workflows/tidi.yml` runs Tidi every 3 hours, plus at ab
    | `TIDI_ENV` | `.env` | `pbcopy < .env` |
    | `GMAIL_CREDENTIALS` | `credentials.json` | `pbcopy < credentials.json` |
    | `GMAIL_TOKEN` | `token.json` | `pbcopy < token.json` |
+   | `TIDI_STATE_KEY` | a new random password that encrypts Tidi's memory | `openssl rand -base64 32 \| pbcopy` |
    | `TIDI_STATE` (optional) | `state.json`, so Tidi remembers what it already handled | `pbcopy < state.json` |
 
 4. **Test it:** **Actions → Tidi → Run workflow**. In a minute or two you get a "🧹 Tidi check done" notification.
 
 Good to know:
 - Taps on **Unsubscribe**, **Keep** and **Check now** are handled at the next run, not instantly.
-- Secrets are encrypted by GitHub and never appear in the repo or the logs.
+- **Safe in a public repo:** secrets are encrypted by GitHub and never appear in the repo or the logs. Tidi's memory is encrypted with `TIDI_STATE_KEY` before it's stored between runs. The workflow has read-only access, never runs from pull requests or in other people's copies of the repo, and Tidi prints no email contents or ntfy topic in the public logs.
+- For extra safety, under **Settings → Actions → General → Approval for running fork pull request workflows**, choose **Require approval for all external contributors**.
 - Google may end the sign-in after 7 days while your Google app is in **Testing** mode. Tidi then alerts you. Sign in again on your Mac (`rm token.json`, then `bash run.sh --test`) and paste the new `token.json` into the `GMAIL_TOKEN` secret. To try to avoid this, open **Google Auth Platform → Audience** and click **Publish app**. For a personal, unverified app with Gmail access, Google may still limit how long the sign-in lasts.
 - After changing `.env`, update the `TIDI_ENV` secret too.
 
