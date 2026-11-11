@@ -92,9 +92,10 @@ def make_notifier():
         topic = "tidi-" + secrets.token_hex(8)
         state["ntfy_topic"] = topic
         store.save(state)
-    print("\n" + "=" * 60)
-    print(f"  In the ntfy app, subscribe to this topic:  {topic}")
-    print("=" * 60 + "\n")
+    if not os.getenv("CI"):  # never print the topic in cloud logs
+        print("\n" + "=" * 60)
+        print(f"  In the ntfy app, subscribe to this topic:  {topic}")
+        print("=" * 60 + "\n")
     return notify.Ntfy(os.getenv("NTFY_SERVER", "https://ntfy.sh"), topic, state,
                        os.getenv("NTFY_TOKEN") or None)
 
