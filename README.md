@@ -124,9 +124,31 @@ This checks your settings, the AI connection, Gmail access and phone alerts, and
 
 Everything Tidi does is also written to `tidi.log` in the folder.
 
-## Keeping it running
+## Run it in the cloud with GitHub Actions (works when your computer is off)
+The workflow in `.github/workflows/tidi.yml` runs Tidi every 3 hours, plus at about 07:30 for the morning brief, on GitHub's servers. It's free for a private repo within GitHub's monthly minutes (each run takes about 1 to 3 minutes).
+
+1. **Use only one copy of Tidi.** If it runs on your Mac too, stop it: `bash service.sh uninstall`.
+2. **Fix your ntfy topic in `.env`**, so cloud alerts go to the topic you're subscribed to: `NTFY_TOPIC=tidi-xxxxxxxxxxxx`.
+3. **Add secrets** in your repo: **Settings → Secrets and variables → Actions → New repository secret**. On a Mac, `pbcopy < file` copies a file so you can paste it:
+
+   | Secret name | Paste the contents of | Copy command |
+   |---|---|---|
+   | `TIDI_ENV` | `.env` | `pbcopy < .env` |
+   | `GMAIL_CREDENTIALS` | `credentials.json` | `pbcopy < credentials.json` |
+   | `GMAIL_TOKEN` | `token.json` | `pbcopy < token.json` |
+   | `TIDI_STATE` (optional) | `state.json`, so Tidi remembers what it already handled | `pbcopy < state.json` |
+
+4. **Test it:** **Actions → Tidi → Run workflow**. In a minute or two you get a "🧹 Tidi check done" notification.
+
+Good to know:
+- Taps on **Unsubscribe**, **Keep** and **Check now** are handled at the next run, not instantly.
+- Secrets are encrypted by GitHub and never appear in the repo or the logs.
+- Google may end the sign-in after 7 days while your Google app is in **Testing** mode. Tidi then alerts you. Sign in again on your Mac (`rm token.json`, then `bash run.sh --test`) and paste the new `token.json` into the `GMAIL_TOKEN` secret. To try to avoid this, open **Google Auth Platform → Audience** and click **Publish app**. For a personal, unverified app with Gmail access, Google may still limit how long the sign-in lasts.
+- After changing `.env`, update the `TIDI_ENV` secret too.
+
+## Keeping it running on your Mac
 Tidi only works while it's running. If you close the terminal, or the Mac sleeps or shuts down, it stops.
-- **On your Mac, in the background (recommended):** `bash service.sh install`. Tidi then runs without VS Code or a terminal, starts every time you log in, and restarts itself if it crashes. Use `bash service.sh status`, `logs`, `restart`, `stop` or `uninstall` to manage it. After changing code or `.env`, run `bash service.sh restart`.
+- **On your Mac, in the background:** `bash service.sh install`. Tidi then runs without VS Code or a terminal, starts every time you log in, and restarts itself if it crashes. Use `bash service.sh status`, `logs`, `restart`, `stop` or `uninstall` to manage it. After changing code or `.env`, run `bash service.sh restart`.
 - **On your Mac, in a terminal:** `bash run.sh`. It stops when you close the terminal.
 - Either way the Mac must stay on and awake: keep it plugged in with the lid open. Tidi asks macOS not to sleep while it runs.
 - Leave it running on a computer that stays on.

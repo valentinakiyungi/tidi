@@ -31,6 +31,10 @@ def get_service():
         if creds and creds.expired and creds.refresh_token:
             creds.refresh(Request())
         else:
+            if os.getenv("CI"):  # GitHub Actions has no browser to sign in with
+                raise RuntimeError(
+                    "invalid_grant: no valid Google sign-in in the cloud. Sign in on your Mac "
+                    "(rm token.json, then bash run.sh --test) and update the GMAIL_TOKEN secret.")
             flow = InstalledAppFlow.from_client_secrets_file("credentials.json", SCOPES)
             creds = flow.run_local_server(port=0)
         with open("token.json", "w") as f:

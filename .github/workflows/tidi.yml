@@ -1,0 +1,80 @@
+# Runs Tidi in GitHub's cloud, so it works even when your Mac is off.
+#
+# Needs three repository secrets (Settings → Secrets and variables → Actions):
+#   TIDI_ENV            the whole contents of your .env file
+#   GMAIL_CREDENTIALS   the contents of credentials.json
+#   GMAIL_TOKEN         the contents of token.json
+# Optional:
+#   TIDI_STATE          the contents of state.json (only used on the very first run)
+#
+# Times are in UTC. Your timezone is UTC+3, so:
+#   every 3 hours at :17  →  00:17, 03:17, 06:17, 09:17, 12:17, 15:17, 18:17, 21:17 your time
+#   04:31 UTC             →  07:31 your time, for the morning brief
+# GitHub sometimes starts scheduled runs a few minutes late.
+name: Tidi
+
+on:
+  schedule:
+    - cron: "17 */3 * * *"
+    - cron: "31 4 * * *"
+  workflow_dispatch: {}   # adds a "Run workflow" button on the Actions tab
+
+concurrency:
+  group: tidi
+  cancel-in-progress: false
+
+jobs:
+  tidy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install packages
+        run: pip install -r requirements.txt
+
+      - name: Restore Tidi's memory
+        id: memory
+        uses: actions/cache/restore@v4
+        with:
+          path: state.json
+          key: tidi-state-${{ github.run_id }}
+          restore-keys: tidi-state-
+
+      - name: Write private files from secrets
+        env:
+          TIDI_ENV: ${{ secrets.TIDI_ENV }}
+          GMAIL_CREDENTIALS: ${{ secrets.GMAIL_CREDENTIALS }}
+          GMAIL_TOKEN: ${{ secrets.GMAIL_TOKEN }}
+          TIDI_STATE: ${{ secrets.TIDI_STATE }}
+        run: |
+          if [ -z "$TIDI_ENV" ] || [ -z "$GMAIL_TOKEN" ]; then
+            echo "::error::Add the TIDI_ENV and GMAIL_TOKEN secrets first (see README)."; exit 1
+          fi
+          printf '%s\n' "$TIDI_ENV" > .env
+          printf '%s' "$GMAIL_CREDENTIALS" > credentials.json
+          printf '%s' "$GMAIL_TOKEN" > token.json
+          if [ ! -f state.json ] && [ -n "$TIDI_STATE" ]; then
+            printf '%s' "$TIDI_STATE" > state.json
+            echo "Started from the TIDI_STATE secret."
+          fi
+
+      - name: Run Tidi once
+        # A run you start by hand always sends a report, so you can see it working.
+        run: python tidi.py --once ${{ github.event_name == 'workflow_dispatch' && '--report' || '' }}
+
+      - name: Save Tidi's memory
+        if: always() && hashFiles('state.json') != ''
+        uses: actions/cache/save@v4
+        with:
+          path: state.json
+          key: tidi-state-${{ github.run_id }}
+
+      - name: Remove private files
+        if: always()
+        run: rm -f .env credentials.json token.json

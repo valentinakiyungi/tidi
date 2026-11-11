@@ -60,6 +60,10 @@ def explain(exc):
     if isinstance(exc, brain.AIError):
         return "Tidi couldn't sort your email because " + msg
     if "invalid_grant" in msg or "Token has been expired or revoked" in msg:
+        if os.getenv("CI"):
+            return ("Your Google sign-in expired, so the cloud copy of Tidi can't read Gmail. "
+                    "On your Mac run  rm token.json  then  bash run.sh --test  to sign in, "
+                    "then paste the new token.json into the GMAIL_TOKEN secret on GitHub.")
         return ("Your Google sign-in expired. On your Mac: stop Tidi (Ctrl+C), "
                 "run  rm token.json  and start Tidi again to sign in.")
     if "insufficient authentication scopes" in msg or "insufficientPermissions" in msg:
@@ -80,6 +84,9 @@ def make_notifier():
         return notify.Telegram(os.environ["TELEGRAM_BOT_TOKEN"],
                                os.getenv("TELEGRAM_CHAT_ID"), state)
     topic = os.getenv("NTFY_TOPIC", "").strip() or state.get("ntfy_topic")
+    if not topic and os.getenv("CI"):
+        raise RuntimeError("NTFY_TOPIC is empty in the TIDI_ENV secret. Add the line "
+                           "NTFY_TOPIC=<your topic> so cloud alerts reach your phone.")
     if not topic:
         # Long random name so nobody can guess it and read your alerts.
         topic = "tidi-" + secrets.token_hex(8)
@@ -285,8 +292,38 @@ def main():
                 break
 
 
+def run_once():
+    """One pass, then exit. Used by GitHub Actions on a schedule:
+    handle your taps/commands since the last run, then send the brief if it's due,
+    otherwise check for new email."""
+    global notifier
+    _lock = single_instance()  # noqa: F841
+    notifier = make_notifier()
+    try:
+        for action, arg, reply in notifier.poll():
+            if action not in ("brief", "check"):  # those happen below anyway
+                handle(action, arg, reply)
+        store.save(state)
+        if due_for_brief(dt.datetime.now(TZ)):
+            do_brief()
+        else:
+            do_check(report="--report" in sys.argv)
+    except Exception as exc:
+        text = explain(exc)
+        log.error(text)
+        try:
+            notifier.send(text, title="⚠️ Tidi needs attention", urgent=True)
+        except Exception:
+            pass
+        store.save(state)
+        sys.exit(1)
+    store.save(state)
+
+
 if __name__ == "__main__":
     if "--test" in sys.argv:
         run_test()
+    elif "--once" in sys.argv:
+        run_once()
     else:
         main()
