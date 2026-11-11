@@ -116,7 +116,9 @@ Everything Tidi does is also written to `tidi.log` in the folder.
 
 ## Keeping it running
 Tidi only works while it's running. If you close the terminal, or the Mac sleeps or shuts down, it stops.
-- **On your Mac:** start it with `bash run.sh`. This keeps the Mac awake while Tidi runs, as long as it stays plugged in with the lid open.
+- **On your Mac, in the background (recommended):** `bash service.sh install`. Tidi then runs without VS Code or a terminal, starts every time you log in, and restarts itself if it crashes. Use `bash service.sh status`, `logs`, `restart`, `stop` or `uninstall` to manage it. After changing code or `.env`, run `bash service.sh restart`.
+- **On your Mac, in a terminal:** `bash run.sh`. It stops when you close the terminal.
+- Either way the Mac must stay on and awake: keep it plugged in with the lid open. Tidi asks macOS not to sleep while it runs.
 - Leave it running on a computer that stays on.
 - Run it on a cheap cloud server (a $5/month VPS, Railway, Render, Fly.io). Copy the folder, **including `token.json` and `state.json`**, and start it with `nohup python tidi.py &` or a systemd service.
 

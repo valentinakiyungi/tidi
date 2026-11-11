@@ -6,3 +6,5 @@ __pycache__/
 state.json
 state.json.tmp
 tidi.log
+tidi.lock
+service.log

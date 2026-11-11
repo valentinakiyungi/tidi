@@ -218,8 +218,22 @@ def run_test():
 
 
 # ---------------------------------------------------------------- main loop
+def single_instance():
+    """Stop if Tidi is already running (e.g. in the background AND in a terminal)."""
+    import fcntl
+    lock = open("tidi.lock", "w")
+    try:
+        fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except OSError:
+        print("Tidi is already running (maybe in the background). "
+              "Check with:  bash service.sh status")
+        sys.exit(0)
+    return lock  # keep the file open for as long as Tidi runs
+
+
 def main():
     global notifier
+    _lock = single_instance()  # noqa: F841
     notifier = make_notifier()
     gm.get_service()  # first run: opens the browser to allow Gmail access
     if not notifier.ready:
