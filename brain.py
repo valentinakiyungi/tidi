@@ -169,22 +169,55 @@ def _parse_json(text):
                   "Try a lower BATCH_SIZE in .env.")
 
 
-def triage(emails):
-    """Return a dict id -> decision for each email. Raises AIError if the AI fails."""
+ALIASES = {"needs reply": "needs_reply", "needsreply": "needs_reply", "reply": "needs_reply",
+           "promotions": "promotion", "promo": "promotion", "marketing": "promotion",
+           "newsletters": "newsletter", "notifications": "notification", "alert": "notification",
+           "alerts": "notification", "urgent": "important"}
+
+
+def _category(value):
+    c = str(value or "").strip().lower().replace("-", "_")
+    c = ALIASES.get(c, ALIASES.get(c.replace("_", " "), c))
+    return c if c in CATEGORIES else None
+
+
+def _triage_batch(batch):
+    """Ask the AI about up to BATCH_SIZE emails. Uses short ids (1, 2, 3...) so the
+    AI can't garble Gmail's long ids, then maps the answers back."""
+    payload = [{
+        "id": str(n), "from": e["from"], "subject": e["subject"], "date": e["date"],
+        "has_unsubscribe_header": bool(e["list_unsubscribe"]),
+        "body": e["body"][:800],
+    } for n, e in enumerate(batch, 1)]
+    prompt = (TRIAGE_PROMPT.replace("NAME", YOUR_NAME)
+              .replace("EMAILS", json.dumps(payload, ensure_ascii=False))
+              + f"\n\nThere are exactly {len(batch)} emails. Return one entry for EVERY id "
+                f"from 1 to {len(batch)}.")
+    data = _parse_json(chat(prompt, 12000, want_json=True))
+    items = data.get("emails", []) if isinstance(data, dict) else data
+    out = {}
+    for d in items or []:
+        if not isinstance(d, dict):
+            continue
+        idx = str(d.get("id", "")).strip().lstrip("#")
+        cat = _category(d.get("category"))
+        if idx.isdigit() and 1 <= int(idx) <= len(batch) and cat:
+            d = dict(d, category=cat, id=batch[int(idx) - 1]["id"])
+            out[d["id"]] = d
+    return out
+
+
+def triage(emails, log=print):
+    """Return a dict gmail_id -> decision. Raises AIError if the AI can't be used at all."""
     decisions = {}
     for i in range(0, len(emails), BATCH_SIZE):
         batch = emails[i:i + BATCH_SIZE]
-        payload = [{
-            "id": e["id"], "from": e["from"], "subject": e["subject"], "date": e["date"],
-            "has_unsubscribe_header": bool(e["list_unsubscribe"]),
-            "body": e["body"][:800],
-        } for e in batch]
-        prompt = (TRIAGE_PROMPT.replace("NAME", YOUR_NAME)
-                  .replace("EMAILS", json.dumps(payload, ensure_ascii=False)))
-        data = _parse_json(chat(prompt, 12000, want_json=True))
-        for d in data.get("emails", []):
-            if d.get("id") and d.get("category") in CATEGORIES:
-                decisions[d["id"]] = d
+        decisions.update(_triage_batch(batch))
+        missing = [e for e in batch if e["id"] not in decisions]
+        if missing:  # ask once more, about just the ones it skipped
+            log(f"AI skipped {len(missing)} email(s) in a batch, asking again")
+            time.sleep(2)
+            decisions.update(_triage_batch(missing))
         if i + BATCH_SIZE < len(emails):
             time.sleep(2)  # be gentle with free-tier limits
     return decisions

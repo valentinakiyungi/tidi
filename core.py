@@ -30,8 +30,9 @@ def process_new(service, state, lookback_hours=24, max_emails=50, log=print):
     if not new:
         return [], len(emails)
 
-    decisions = brain.triage(new)
-    log(f"AI sorted {len(decisions)} of {len(new)} email(s)")
+    decisions = brain.triage(new, log=log)
+    log(f"AI sorted {len(decisions)} of {len(new)} email(s)"
+        + ("" if len(decisions) == len(new) else " (the rest will be retried next check)"))
 
     history = state.setdefault("log", [])
     queue = state.setdefault("unsub_queue", [])
