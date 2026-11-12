@@ -133,7 +133,8 @@ The workflow in `.github/workflows/tidi.yml` runs Tidi every 3 hours, plus at ab
 
    | Secret name | Paste the contents of | Copy command |
    |---|---|---|
-   | `TIDI_ENV` | `.env` | `pbcopy < .env` |
+   | `AI_API_KEY` | your AI key (one line) | `grep '^AI_API_KEY=' .env \| cut -d= -f2- \| tr -d '\n' \| pbcopy` |
+   | `NTFY_TOPIC` | your ntfy topic (one line) | `grep '^NTFY_TOPIC=' .env \| cut -d= -f2- \| tr -d '\n' \| pbcopy` |
    | `GMAIL_CREDENTIALS` | `credentials.json` | `pbcopy < credentials.json` |
    | `GMAIL_TOKEN` | `token.json` | `pbcopy < token.json` |
    | `TIDI_STATE_KEY` | a new random password that encrypts Tidi's memory | `openssl rand -base64 32 \| pbcopy` |
@@ -146,7 +147,8 @@ Good to know:
 - **Safe in a public repo:** secrets are encrypted by GitHub and never appear in the repo or the logs. Tidi's memory is encrypted with `TIDI_STATE_KEY` before it's stored between runs. The workflow has read-only access, never runs from pull requests or in other people's copies of the repo, and Tidi prints no email contents or ntfy topic in the public logs.
 - For extra safety, under **Settings → Actions → General → Approval for running fork pull request workflows**, choose **Require approval for all external contributors**.
 - Google may end the sign-in after 7 days while your Google app is in **Testing** mode. Tidi then alerts you. Sign in again on your Mac (`rm token.json`, then `bash run.sh --test`) and paste the new `token.json` into the `GMAIL_TOKEN` secret. To try to avoid this, open **Google Auth Platform → Audience** and click **Publish app**. For a personal, unverified app with Gmail access, Google may still limit how long the sign-in lasts.
-- After changing `.env`, update the `TIDI_ENV` secret too.
+- Non-private settings for the cloud (timezone, brief time, your name, AI provider) are in the `env:` section of `.github/workflows/tidi.yml`. If you change your AI key or ntfy topic, update the `AI_API_KEY` or `NTFY_TOPIC` secret.
+- Each run's log shows "Settings found: AI_API_KEY ✓, NTFY_TOPIC ✓" and "Gmail sign-in ✓". A ✗ there tells you which secret to fix.
 
 ## Keeping it running on your Mac
 Tidi only works while it's running. If you close the terminal, or the Mac sleeps or shuts down, it stops.

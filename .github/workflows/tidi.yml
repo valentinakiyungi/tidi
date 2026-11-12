@@ -6,11 +6,14 @@
 #   - Tidi prints no email contents or ntfy topic in these (public) logs
 #
 # Repository secrets (Settings → Secrets and variables → Actions):
-#   TIDI_ENV            the whole contents of your .env file
-#   GMAIL_CREDENTIALS   the contents of credentials.json
+#   AI_API_KEY          your AI key, one line
+#   NTFY_TOPIC          your ntfy topic, one line (e.g. tidi-1234abcd...)
 #   GMAIL_TOKEN         the contents of token.json
+#   GMAIL_CREDENTIALS   the contents of credentials.json
 #   TIDI_STATE_KEY      a random password:  openssl rand -base64 32 | pbcopy
 #   TIDI_STATE          optional: contents of state.json, used only if nothing is saved yet
+#   TIDI_ENV            optional: your whole .env (the one-line secrets above win)
+# Settings that aren't private (timezone, brief time, name...) are under "env:" below.
 #
 # Times are UTC. Your timezone is UTC+3, so:
 #   every 3 hours at :17  →  00:17, 03:17, 06:17, 09:17, 12:17, 15:17, 18:17, 21:17
@@ -36,6 +39,16 @@ jobs:
     if: github.repository_owner == 'valentinakiyungi'
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    # Settings that aren't private. Change them here if you like.
+    env:
+      NOTIFY_VIA: ntfy
+      AI_PROVIDER: gemini
+      TIMEZONE: Africa/Dar_es_Salaam
+      BRIEF_TIME: "07:30"
+      YOUR_NAME: Valentina
+      LOOKBACK_HOURS: "24"
+      MAX_EMAILS: "50"
+      BATCH_SIZE: "8"
     steps:
       - uses: actions/checkout@v4
 
@@ -61,18 +74,47 @@ jobs:
           GMAIL_TOKEN: ${{ secrets.GMAIL_TOKEN }}
           TIDI_STATE: ${{ secrets.TIDI_STATE }}
           TIDI_STATE_KEY: ${{ secrets.TIDI_STATE_KEY }}
+          S_AI_API_KEY: ${{ secrets.AI_API_KEY }}
+          S_NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
         run: |
           missing=""
-          for s in TIDI_ENV GMAIL_TOKEN TIDI_STATE_KEY; do
+          for s in GMAIL_TOKEN TIDI_STATE_KEY; do
             [ -z "${!s}" ] && missing="$missing $s"
           done
           if [ -n "$missing" ]; then
             echo "::error title=Tidi::Missing secret(s):$missing. Add them in Settings → Secrets and variables → Actions."
             exit 1
           fi
+          # Optional full .env (one-line secrets below take priority over it)
           printf '%s\n' "$TIDI_ENV" > .env
+          # One-line secrets: safest way to pass the AI key and ntfy topic
+          [ -n "$S_AI_API_KEY" ] && echo "AI_API_KEY=$(printf '%s' "$S_AI_API_KEY" | tr -d '\r\n ')" >> "$GITHUB_ENV"
+          [ -n "$S_NTFY_TOPIC" ] && echo "NTFY_TOPIC=$(printf '%s' "$S_NTFY_TOPIC" | sed 's/^NTFY_TOPIC=//' | tr -d '\r\n ')" >> "$GITHUB_ENV"
           printf '%s' "$GMAIL_CREDENTIALS" > credentials.json
           printf '%s' "$GMAIL_TOKEN" > token.json
+          # Health check: names only, never values
+          python - <<'PY'
+          import json, os, re
+          env = open(".env").read()
+          keys = set(re.findall(r"^\s*([A-Z_]+)\s*=\s*\S", env, re.M))
+          have = lambda k: bool(os.environ.get("S_" + k)) or k in keys
+          print("Settings found:", ", ".join(f"{k} {'✓' if have(k) else '✗'}" for k in ("AI_API_KEY", "NTFY_TOPIC")))
+          if env.strip() and not keys:
+              print("::warning title=Tidi::The TIDI_ENV secret couldn't be read as settings. That's OK if you use the AI_API_KEY and NTFY_TOPIC secrets.")
+          for k in ("AI_API_KEY", "NTFY_TOPIC"):
+              if not have(k):
+                  print(f"::error title=Tidi::Missing {k}. Add it as its own secret (one line) in Settings → Secrets and variables → Actions.")
+          try:
+              tok = json.load(open("token.json"))
+              ok = bool(tok.get("refresh_token"))
+          except Exception:
+              ok = False
+          print("Gmail sign-in (GMAIL_TOKEN):", "✓" if ok else "✗")
+          if not ok:
+              print("::error title=Tidi::GMAIL_TOKEN isn't a valid token.json. On your Mac run  pbcopy < token.json  and paste it into the GMAIL_TOKEN secret.")
+          if not ok or not all(have(k) for k in ("AI_API_KEY", "NTFY_TOPIC")):
+              raise SystemExit(1)
+          PY
           if [ -f state.json.enc ]; then
             if openssl enc -d -aes-256-cbc -pbkdf2 -iter 200000 -pass env:TIDI_STATE_KEY \
                  -in state.json.enc -out state.json 2>/dev/null; then
